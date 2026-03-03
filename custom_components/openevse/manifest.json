@@ -16,7 +16,7 @@
     "openevsehttp"
   ],
   "requirements": [
-    "python-openevse-http==0.2.5"
+    "python-openevse-http @ git+https://github.com/WheresWes/python-openevse-http.git@fix/websocket-reconnect"
   ],
   "version": "0.0.0-dev",
   "zeroconf": [
