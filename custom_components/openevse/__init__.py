@@ -408,25 +408,31 @@ class OpenEVSEUpdateCoordinator(DataUpdateCoordinator):
             )
             raise UpdateFailed(error) from error
 
-        try:
-            assert self._manager.websocket
-        except AssertionError as error:
-            _LOGGER.debug("Websocket not setup.")
-            raise UpdateFailed(error) from error
-
-        if self._manager.websocket.state != "connected":
-            _LOGGER.debug("Connecting to websocket...")
-            try:
-                self._manager.ws_start()
-            except RuntimeError:
-                pass
-            except Exception as error:
+        # Gracefully handle websocket — don't block updates if it's unavailable.
+        # HTTP already fetched both /status and /config when _ws_listening is False,
+        # so sensors will still get data even without a websocket connection.
+        if self._manager.websocket is not None:
+            if self._manager.websocket.state != "connected":
                 _LOGGER.debug(
-                    "Error connecting to websocket [%s]: %s",
-                    type(error).__name__,
-                    error,
+                    "Websocket state is '%s', attempting to reconnect...",
+                    self._manager.websocket.state,
                 )
-                raise UpdateFailed(error) from error
+                try:
+                    self._manager.ws_start()
+                except RuntimeError:
+                    pass
+                except Exception as error:
+                    _LOGGER.debug(
+                        "Error connecting to websocket [%s]: %s",
+                        type(error).__name__,
+                        error,
+                    )
+                    # Don't raise UpdateFailed — fall back to HTTP-only updates
+                    _LOGGER.warning(
+                        "Websocket unavailable, using HTTP polling for updates"
+                    )
+        else:
+            _LOGGER.debug("Websocket not yet initialized, using HTTP polling")
 
         self.parse_sensors()
         await self.async_parse_sensors()
